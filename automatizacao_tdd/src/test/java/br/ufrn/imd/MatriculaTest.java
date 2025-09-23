@@ -5,12 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-public class MatriculaConsolidacaoParamTest {
+public class MatriculaTest {
 
     private Matricula novaMatricula() {
         Discente d = new Discente();
@@ -55,12 +54,12 @@ public class MatriculaConsolidacaoParamTest {
                     // REPMF: freq < 75 e média < 3.0
                     "2.0;2.0;2.0;60;REPMF",
 
-                    // Testes interessantes:
+                    // Casos de borda / interessantes:
                     // média = 3.0 e freq = 75 => REC
                     "1.0;3.0;5.0;75;REC",
-                    // média = 5.99... (aprox) e freq = 75 => REC
+                    // média ≈ 5.67 e freq = 75 => REC
                     "6.0;6.0;5.0;75;REC",
-                    // média = 6.0 mas uma nota = 4.0 => continua válido p/ APR (nota não <4.0)
+                    // média = 6.0 e menor nota = 4.0 (não é < 4.0) => APR
                     "4.0;7.0;7.0;90;APR",
                     // média < 6.0 por pouco e freq ok => REC
                     "4.0;6.0;6.0;90;REC"
@@ -79,60 +78,59 @@ public class MatriculaConsolidacaoParamTest {
         assertEquals(StatusAprovacao.valueOf(statusEsperado), m.getStatus());
     }
 
-
-    // --------------------------- Testes para lançamento de exceções ------------------------
-
-    private Matricula m;
-
-    @BeforeEach
-    void setup() {
-        Discente d = new Discente();
-        d.setNome("Aluno X");
-        d.setMatricula(456);
-
-        Docente prof = new Docente();
-        prof.setNome("Prof Y");
-        prof.setSiape(111);
-
-        Disciplina disc = new Disciplina();
-        disc.setNome("IMD-TS");
-        disc.setCodigo("TS-01");
-
-        Turma t = new Turma(prof, disc);
-        m = new Matricula(d, t);
-    }
+    // --------------------------- Testes de exceção ---------------------------
 
     @Test
     void deveLancarExcecaoQuandoNotaForMenorQueZero() {
+        Matricula m = novaMatricula();
         assertThrows(IllegalArgumentException.class, () -> m.cadastrarNota1(new BigDecimal("-0.01")));
     }
 
     @Test
     void deveLancarExcecaoQuandoNotaForMaiorQueDez() {
+        Matricula m = novaMatricula();
         assertThrows(IllegalArgumentException.class, () -> m.cadastrarNota2(new BigDecimal("10.01")));
     }
 
     @Test
     void deveLancarExcecaoQuandoNotaForNula() {
+        Matricula m = novaMatricula();
         assertThrows(IllegalArgumentException.class, () -> m.cadastrarNota3(null));
     }
 
     @Test
     void deveLancarExcecaoQuandoFrequenciaForMenorQueZero() {
+        Matricula m = novaMatricula();
         assertThrows(IllegalArgumentException.class, () -> m.cadastrarFrequencia(-1));
     }
 
     @Test
     void deveLancarExcecaoQuandoFrequenciaForMaiorQueCem() {
+        Matricula m = novaMatricula();
         assertThrows(IllegalArgumentException.class, () -> m.cadastrarFrequencia(101));
     }
 
     @Test
     void deveLancarExcecaoAoConsolidarSemNotasOuFrequencia() {
+        Matricula m = novaMatricula();
         // cadastra apenas parte dos dados para forçar IllegalStateException
         m.cadastrarNota1(new BigDecimal("5.0"));
         m.cadastrarNota2(new BigDecimal("5.0"));
         // falta nota3 e frequência
-        assertThrows(IllegalStateException.class, () -> m.consolidarParcialmente());
+        assertThrows(IllegalStateException.class, m::consolidarParcialmente);
+    }
+
+    // --------------------------- Teste do calcularMediaParcial ---------------------------
+
+    @Test
+    void deveCalcularMediaParcialCorretamente() {
+        Matricula m = novaMatricula();
+        m.cadastrarNota1(new BigDecimal("6.0"));
+        m.cadastrarNota2(new BigDecimal("5.5"));
+        m.cadastrarNota3(new BigDecimal("8.0"));
+
+        BigDecimal media = m.calcularMediaParcial();
+
+        assertEquals(new BigDecimal("6.50"), media);
     }
 }
